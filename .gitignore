@@ -197,3 +197,4 @@ pyrightconfig.json
 # Ignore personal contacts
 followers_1.json
 following.json
+*.db
