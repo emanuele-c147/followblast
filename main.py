@@ -4,6 +4,7 @@ Read Instagram followers/following JSON exports and migrate them to a SQLite dat
 
 import ijson
 import sqlite3
+from contextlib import contextmanager
 
 
 def parse_follower(contact):
@@ -47,12 +48,41 @@ FILES_CONFIG = {
     },
 }
 
+DB_CONFIG = [
+    """CREATE TABLE IF NOT EXISTS people (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            contact_reference TEXT
+        );""",
+    """CREATE TABLE IF NOT EXISTS followers (
+            user_id INTEGER PRIMARY KEY,
+            timestamp INTEGER NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES people(id)
+        );""",
+    """CREATE TABLE IF NOT EXISTS following (
+            user_id INTEGER PRIMARY KEY,
+            timestamp INTEGER NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES people(id)
+        );"""
+]
 
+
+@contextmanager
 def connect(db_name="ig_contacts.db"):
-    """Establish a connection with the database"""
+    """Establish, yield, and safely close a database connection."""
 
     conn = sqlite3.connect(db_name)
-    return conn
+
+    try:
+        conn.execute("PRAGMA foreign_keys = ON")
+        cur = conn.cursor()
+        for create_table_query in DB_CONFIG:
+            cur.execute(create_table_query)
+        conn.commit()
+
+        yield conn
+    finally:
+        conn.close()
 
 
 def read_json(file, item_path):
@@ -66,13 +96,13 @@ def read_json(file, item_path):
 def main():
     """Load followers and following from Instagram JSON exports and save them to SQLite."""
 
-    db_conn = connect()
+    with connect() as db_conn:
 
-    for contact_type, config in FILES_CONFIG.items():
+        for contact_type, config in FILES_CONFIG.items():
 
-        contacts = read_json(config["file"], config["item_path"])
+            contacts = read_json(config["file"], config["item_path"])
 
-        # TODO: insert contacts into SQLite
+            # TODO: insert contacts into SQLite
 
 
 if __name__ == "__main__":
