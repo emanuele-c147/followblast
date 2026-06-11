@@ -93,6 +93,40 @@ def read_json(file, item_path):
             yield contact
 
 
+def contacts_to_database(db_conn, contact_type, contacts, parser):
+    """Parse and insert contacts into the appropriate SQLite table.
+
+    Args:
+        db_conn: Active SQLite connection.
+        contact_type: Table name / label ('followers' or 'following').
+        contacts: Iterable of raw contact dicts from the JSON.
+        parser: Function that normalizes a raw contact into a flat dict.
+    """
+    cur = db_conn.cursor()
+
+    for contact in contacts:
+
+        # Remap raw keys to a consistent schema
+        contact_data = parser(contact)
+
+        cur.execute(
+            "INSERT OR IGNORE INTO people (username, contact_reference) VALUES (:username, :contact_reference)",
+            contact_data
+        )
+
+        user_id = cur.execute(
+            "SELECT id FROM people WHERE username = :username",
+            contact_data
+        ).fetchone()[0]
+
+        cur.execute(
+            f"INSERT OR IGNORE INTO {contact_type} (user_id, timestamp) VALUES (?, ?)",
+            (user_id, contact_data["timestamp"])
+        )
+
+    db_conn.commit()
+
+
 def main():
     """Load followers and following from Instagram JSON exports and save them to SQLite."""
 
@@ -102,7 +136,7 @@ def main():
 
             contacts = read_json(config["file"], config["item_path"])
 
-            # TODO: insert contacts into SQLite
+            contacts_to_database(db_conn, contact_type, contacts, config["parser"])
 
 
 if __name__ == "__main__":
