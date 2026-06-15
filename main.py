@@ -127,8 +127,61 @@ def contacts_to_database(db_conn, contact_type, contacts, parser):
     db_conn.commit()
 
 
+def extract_contact(db_conn):
+    """Query the DB on what the user wants to see."""
+
+    cur = db_conn.cursor()
+
+    options = {
+        "1": {
+            "text1": "Who doesn't follow me back",
+            "text2": "There are {} people that don't follow me back",
+            "query": "SELECT p.username FROM people p JOIN following f ON p.id = f.user_id LEFT JOIN followers fo ON p.id = fo.user_id WHERE fo.user_id IS NULL"
+        },
+        "2": {
+            "text1": "My followers",
+            "text2": "I have {} followers",
+            "query": "SELECT p.username, f.timestamp FROM people p JOIN followers f ON p.id = f.user_id"
+        },
+        "3": {
+            "text1": "My following",
+            "text2": "I follow {} people",
+            "query": "SELECT p.username, f.timestamp FROM people p JOIN following f ON p.id = f.user_id"
+        }
+    }
+
+    print("What do you want to know?")
+    for option in options:
+        print(f"{option}- {options[option]['text1']}")
+
+    user_option = input("1, 2, 3: ")
+
+    while user_option not in options:
+        print("Invalid input, must be: 1, 2 or 3")
+        user_option = input("1, 2, 3: ")
+
+    query = options[user_option]["query"]
+
+    count_rows_query = f"SELECT COUNT(*) FROM ({query})"
+
+    cur.execute(count_rows_query)
+    total_rows = cur.fetchone()[0]
+
+    print(options[user_option]["text2"].format(total_rows))
+
+    cur.execute(query)
+    for row in cur:
+        print(f"- {row[0]}")
+
+
 def main():
-    """Load followers and following from Instagram JSON exports and save them to SQLite."""
+    """Load followers and following from Instagram JSON exports and save them to SQLite.
+    Extract data from the DB to see various information.
+    """
+
+    print("Instagram Contacts Manager")
+    print("By Emanuele Canazza - https://github.com/emanuele-c147")
+    print()
 
     with connect() as db_conn:
 
@@ -137,6 +190,8 @@ def main():
             contacts = read_json(config["file"], config["item_path"])
 
             contacts_to_database(db_conn, contact_type, contacts, config["parser"])
+
+        extract_contact(db_conn)
 
 
 if __name__ == "__main__":
