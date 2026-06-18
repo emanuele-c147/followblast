@@ -154,8 +154,14 @@ def extract_contact(db_conn, process_option):
 
 
 def generate_file_name(file_name):
-    # TODO generator of file name
-    pass
+    """Generate a file name appended with the current date and time.
+    The generated name does not include a file extension.
+    """
+
+    timestamp = datetime.datetime.today().strftime('%Y-%m-%d_%H-%M-%S')
+    complete_file_name = file_name.lower().replace(" ", "-") + f"_{timestamp}"
+
+    return complete_file_name
 
 
 def export_to_html(file_name, data):
