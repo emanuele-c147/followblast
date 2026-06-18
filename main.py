@@ -180,8 +180,15 @@ def export_to_json(file_name, data):
 
 
 def export_to_txt(file_name, data):
-    # TODO implement export to TXT file
-    pass
+    """Create an export TXT file with a list of contacts."""
+
+    print(f"Creating and writig on {file_name}")
+
+    with open(file_name, "w") as file:
+        for element in data:
+            file.write(element)
+
+    print("Export completed successfully.")
 
 
 def main():
