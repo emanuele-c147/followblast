@@ -5,6 +5,8 @@ Read Instagram followers/following JSON exports and migrate them to a SQLite dat
 import ijson
 import sqlite3
 from contextlib import contextmanager
+import config
+import datetime
 
 
 def parse_follower(contact):
@@ -35,38 +37,6 @@ def parse_following(contact):
     return parsed_dict
 
 
-FILES_CONFIG = {
-    "followers": {
-        "file": "followers_1.json",
-        "parser": parse_follower,
-        "item_path": "item",
-    },
-    "following": {
-        "file": "following.json",
-        "parser": parse_following,
-        "item_path": "relationships_following.item",
-    },
-}
-
-DB_CONFIG = [
-    """CREATE TABLE IF NOT EXISTS people (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            contact_reference TEXT
-        );""",
-    """CREATE TABLE IF NOT EXISTS followers (
-            user_id INTEGER PRIMARY KEY,
-            timestamp INTEGER NOT NULL,
-            FOREIGN KEY(user_id) REFERENCES people(id)
-        );""",
-    """CREATE TABLE IF NOT EXISTS following (
-            user_id INTEGER PRIMARY KEY,
-            timestamp INTEGER NOT NULL,
-            FOREIGN KEY(user_id) REFERENCES people(id)
-        );"""
-]
-
-
 @contextmanager
 def connect(db_name="ig_contacts.db"):
     """Establish, yield, and safely close a database connection."""
@@ -76,7 +46,7 @@ def connect(db_name="ig_contacts.db"):
     try:
         conn.execute("PRAGMA foreign_keys = ON")
         cur = conn.cursor()
-        for create_table_query in DB_CONFIG:
+        for create_table_query in config.DB_CONFIG:
             cur.execute(create_table_query)
         conn.commit()
 
@@ -86,7 +56,7 @@ def connect(db_name="ig_contacts.db"):
 
 
 def read_json(file, item_path):
-    """Reads the json content item by item avoiding RAM saturation"""
+    """Reads the json content item by item avoiding RAM saturation."""
 
     with open(file, 'rb') as f:
         for contact in ijson.items(f, item_path):
@@ -102,6 +72,7 @@ def contacts_to_database(db_conn, contact_type, contacts, parser):
         contacts: Iterable of raw contact dicts from the JSON.
         parser: Function that normalizes a raw contact into a flat dict.
     """
+
     cur = db_conn.cursor()
 
     for contact in contacts:
@@ -127,51 +98,84 @@ def contacts_to_database(db_conn, contact_type, contacts, parser):
     db_conn.commit()
 
 
-def extract_contact(db_conn):
+def validate_input(user_input, options):
+    """Validate the user input.
+    Ask for new input until the option is valid.
+    """
+
+    while user_input not in options:
+
+        valid_options = list(options.keys())
+        print(type(valid_options))
+        msg = ", ".join([str(i) for i in valid_options[:-2]])
+        valid_values = f"{msg[:-2]} or {valid_options[:-1]}"
+        print(f"Invalid input, must be: {valid_values}")
+
+        input_msg = ", ".join(str(i) for i in options.keys()) + ": "
+        user_input = input(input_msg)
+
+    return user_input
+
+
+def get_input(options, msg_key=None):
+    """Parse the menu content, the take user input and send it to validation.
+    Args:
+        options: a dict with all the options
+        msg_key: the key for the menu string
+    """
+
+    for option, value in options.items():
+        print(f"{option}- {value[msg_key] if msg_key and isinstance(value, dict) else value}")
+
+    input_msg = ", ".join(str(i) for i in options.keys()) + ": "
+    user_input = input(input_msg)
+
+    return validate_input(user_input, options)
+
+
+def extract_contact(db_conn, process_option):
     """Query the DB on what the user wants to see."""
 
     cur = db_conn.cursor()
 
-    options = {
-        "1": {
-            "text1": "Who doesn't follow me back",
-            "text2": "There are {} people that don't follow me back",
-            "query": "SELECT p.username FROM people p JOIN following f ON p.id = f.user_id LEFT JOIN followers fo ON p.id = fo.user_id WHERE fo.user_id IS NULL"
-        },
-        "2": {
-            "text1": "My followers",
-            "text2": "I have {} followers",
-            "query": "SELECT p.username, f.timestamp FROM people p JOIN followers f ON p.id = f.user_id"
-        },
-        "3": {
-            "text1": "My following",
-            "text2": "I follow {} people",
-            "query": "SELECT p.username, f.timestamp FROM people p JOIN following f ON p.id = f.user_id"
-        }
-    }
-
-    print("What do you want to know?")
-    for option in options:
-        print(f"{option}- {options[option]['text1']}")
-
-    user_option = input("1, 2, 3: ")
-
-    while user_option not in options:
-        print("Invalid input, must be: 1, 2 or 3")
-        user_option = input("1, 2, 3: ")
-
-    query = options[user_option]["query"]
+    query = config.PROCESS_OPTIONS[process_option]["query"]
 
     count_rows_query = f"SELECT COUNT(*) FROM ({query})"
 
     cur.execute(count_rows_query)
     total_rows = cur.fetchone()[0]
 
-    print(options[user_option]["text2"].format(total_rows))
+    header = config.PROCESS_OPTIONS[process_option]["output_message"].format(total_rows)
+    yield header
 
     cur.execute(query)
     for row in cur:
-        print(f"- {row[0]}")
+        yield f"- {row[0]}"
+
+
+def generate_file_name(file_name):
+    # TODO generator of file name
+    pass
+
+
+def export_to_html(file_name, data):
+    # TODO implement export to HTML file
+    pass
+
+
+def export_to_csv(file_name, data):
+    # TODO implement export to CSV file
+    pass
+
+
+def export_to_json(file_name, data):
+    # TODO implement export to JSON file
+    pass
+
+
+def export_to_txt(file_name, data):
+    # TODO implement export to TXT file
+    pass
 
 
 def main():
@@ -179,19 +183,38 @@ def main():
     Extract data from the DB to see various information.
     """
 
-    print("Instagram Contacts Manager")
+    print("--- Instagram Contacts Manager ---")
     print("By Emanuele Canazza - https://github.com/emanuele-c147")
     print()
 
     with connect() as db_conn:
 
-        for contact_type, config in FILES_CONFIG.items():
+        for contact_type, file_config in config.FILES_CONFIG.items():
 
-            contacts = read_json(config["file"], config["item_path"])
+            contacts = read_json(file_config["file"], file_config["item_path"])
 
-            contacts_to_database(db_conn, contact_type, contacts, config["parser"])
+            contacts_to_database(db_conn, contact_type, contacts, file_config["parser"])
 
-        extract_contact(db_conn)
+        print("What do you want to know?")
+        process_option = get_input(config.PROCESS_OPTIONS, "title")
+        print()
+
+        print("Would you like to export you data?")
+        export_option = get_input(config.EXPORT_OPTIONS, "title")
+        print()
+
+        data = extract_contact(db_conn, process_option)
+
+        if "exporter" in config.EXPORT_OPTIONS[export_option].keys():
+            file_name = generate_file_name(config.PROCESS_OPTIONS[process_option]["title"])
+            file_extension = config.EXPORT_OPTIONS[export_option]["extension"]
+            exporter = config.EXPORT_OPTIONS[export_option]["exporter"]
+
+            exporter(file_extension.format(file_name), data)
+
+        else:
+            for element in data:
+                print(element)
 
 
 if __name__ == "__main__":
