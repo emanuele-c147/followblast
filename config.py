@@ -62,7 +62,8 @@ EXPORT_OPTIONS = {
     "2": {
         "title": "Export as JSON",
         "extension": "{}.json",
-        "exporter": export_to_json
+        "exporter": export_to_json,
+        "indent": 4
     },
     "3": {
         "title": "Export as CSV",

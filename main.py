@@ -3,6 +3,8 @@ Read Instagram followers/following JSON exports and migrate them to a SQLite dat
 """
 
 import ijson
+import json
+import re
 import sqlite3
 from contextlib import contextmanager
 import config
@@ -150,7 +152,7 @@ def extract_contact(db_conn, process_option):
 
     cur.execute(query)
     for row in cur:
-        yield f"- {row[0]}"
+        yield row[0]
 
 
 def generate_file_name(file_name):
@@ -174,9 +176,22 @@ def export_to_csv(file_name, data):
     pass
 
 
-def export_to_json(file_name, data):
-    # TODO implement export to JSON file
-    pass
+def export_to_json(file_name, data, indent=4):
+    print(f'Creating and writig on "{file_name}"')
+
+    total_count_raw = next(data)
+    total_count = int(re.search(r"\d+", total_count_raw).group())
+
+    with open(file_name, "w") as file:
+        file.write("{")
+        file.write(f'{" "*indent}"total_count": {json.dumps(total_count)},')
+        file.write(f'{" "*indent}"data": [')
+        for element in data:
+            file.write(f'{" "*indent*2}{json.dumps(element)},')
+        file.write(f'{" "*indent}]}}')
+        file.write("}")
+
+    print("Export completed successfully.")
 
 
 def export_to_txt(file_name, data):
@@ -214,20 +229,28 @@ def main():
 
         print("Would you like to export you data?")
         export_option = get_input(config.EXPORT_OPTIONS, "title")
+        export_config = config.EXPORT_OPTIONS[export_option]
         print()
 
-        data = extract_contact(db_conn, process_option)
-
-        if "exporter" in config.EXPORT_OPTIONS[export_option].keys():
+        exporter = export_config.get("exporter", None)
+        if exporter:
             file_name = generate_file_name(config.PROCESS_OPTIONS[process_option]["title"])
-            file_extension = config.EXPORT_OPTIONS[export_option]["extension"]
-            exporter = config.EXPORT_OPTIONS[export_option]["exporter"]
+            file_extension = export_config["extension"]
 
-            exporter(file_extension.format(file_name), data)
+            args = {
+                "file_name": file_extension.format(file_name),
+                "data": extract_contact(db_conn, process_option)
+            }
+
+            indent = export_config.get("indent", None)
+            if indent:
+                args.update({"indent": indent})
+
+            exporter(**args)
 
         else:
-            for element in data:
-                print(element)
+            for element in extract_contact(db_conn, process_option):
+                print(f"- {element}")
 
 
 if __name__ == "__main__":
