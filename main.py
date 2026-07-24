@@ -4,6 +4,7 @@ Read Instagram followers/following JSON exports and migrate them to a SQLite dat
 
 import ijson
 import json
+from jinja2 import Environment, FileSystemLoader
 import re
 import sqlite3
 from contextlib import contextmanager
@@ -167,8 +168,19 @@ def generate_file_name(file_name):
 
 
 def export_to_html(file_name, data):
-    # TODO implement export to HTML file
-    pass
+    """Create an export HTML file with a list of contacts."""
+    
+    env = Environment(loader=FileSystemLoader("./templates"))
+    template = env.get_template("template.html")
+
+    header = next(data)
+    stream = template.stream(header=header, data=data)
+
+    print(f"Creating and writig on {file_name}")
+
+    stream.dump(file_name)
+
+    print("Export completed successfully.")
 
 
 def export_to_csv(file_name, data):

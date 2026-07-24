@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Ig contacts export</title>
+    <style>
+        body { font-family: sans-serif; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 6px; font-size: 12px; }
+        th { background-color: #f4f4f4; }
+    </style>
+</head>
+<body>
+    <h1>{{ header }}</h1>
+    <table>
+        <tr>
+            <th>Username</th>
+        </tr>
+        {% for item in data %}
+        <tr>
+            <td>{{ item }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>
