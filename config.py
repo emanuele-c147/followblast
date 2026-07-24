@@ -50,6 +50,11 @@ PROCESS_OPTIONS = {
         "title": "My following",
         "output_message": "I follow {} people",
         "query": "SELECT p.username, f.timestamp FROM people p JOIN following f ON p.id = f.user_id"
+    },
+    "4": {
+        "title": "Who I don't follow back",
+        "output_message": "There are {} people that I don't follow back",
+        "query": "SELECT p.username FROM followers f JOIN people p ON f.user_id = p.id LEFT JOIN following fg ON f.user_id = fg.user_id WHERE fg.user_id IS NULL"
     }
 }
 
