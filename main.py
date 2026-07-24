@@ -6,6 +6,7 @@ import ijson
 import json
 from jinja2 import Environment, FileSystemLoader
 import re
+import csv
 import sqlite3
 from contextlib import contextmanager
 import config
@@ -108,13 +109,12 @@ def validate_input(user_input, options):
 
     while user_input not in options:
 
-        valid_options = list(options.keys())
-        print(type(valid_options))
-        msg = ", ".join([str(i) for i in valid_options[:-2]])
-        valid_values = f"{msg[:-2]} or {valid_options[:-1]}"
+        valid_options = list(options)
+        msg = ", ".join(str(i) for i in valid_options[:-1])
+        valid_values = f"{msg} or {valid_options[-1]}"
         print(f"Invalid input, must be: {valid_values}")
 
-        input_msg = ", ".join(str(i) for i in options.keys()) + ": "
+        input_msg = ", ".join(str(i) for i in options) + ": "
         user_input = input(input_msg)
 
     return user_input
