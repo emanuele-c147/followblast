@@ -184,8 +184,19 @@ def export_to_html(file_name, data):
 
 
 def export_to_csv(file_name, data):
-    # TODO implement export to CSV file
-    pass
+    """Create an export CSV file with a list of contacts."""
+
+    # Skip the descriptive sentence to keep the CSV strict
+    next(data)
+
+    print(f"Creating and writig on {file_name}")
+    
+    with open(file_name, 'w', newline='') as file:
+        writer = csv.writer(file)
+        for item in data:
+            writer.writerow([item])
+
+    print("Export completed successfully.")
 
 
 def export_to_json(file_name, data, indent=4):
