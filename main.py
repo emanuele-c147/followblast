@@ -5,6 +5,8 @@ Read Instagram followers/following JSON exports and migrate them to a SQLite dat
 import ijson
 import json
 from jinja2 import Environment, FileSystemLoader
+from json_stream import streamable_list
+import sys
 import re
 import csv
 import sqlite3
@@ -200,19 +202,17 @@ def export_to_csv(file_name, data):
 
 
 def export_to_json(file_name, data, indent=4):
-    print(f'Creating and writig on "{file_name}"')
+    """Create an export JSON file with a list of contacts."""
 
     total_count_raw = next(data)
     total_count = int(re.search(r"\d+", total_count_raw).group())
 
+    data = streamable_list(data)
+    payload = {"total_count": total_count, "data": data}
+
+    print(f'Creating and writig on "{file_name}"')
     with open(file_name, "w") as file:
-        file.write("{")
-        file.write(f'{" "*indent}"total_count": {json.dumps(total_count)},')
-        file.write(f'{" "*indent}"data": [')
-        for element in data:
-            file.write(f'{" "*indent*2}{json.dumps(element)},')
-        file.write(f'{" "*indent}]}}')
-        file.write("}")
+        json.dump(payload, file, indent=4)
 
     print("Export completed successfully.")
 
