@@ -212,7 +212,7 @@ def export_to_json(file_name, data, indent=4):
 
     print(f'Creating and writig on "{file_name}"')
     with open(file_name, "w") as file:
-        json.dump(payload, file, indent=4)
+        json.dump(payload, file, indent=indent)
 
     print("Export completed successfully.")
 
