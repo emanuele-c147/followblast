@@ -211,9 +211,12 @@ def export_to_txt(file_name, data):
 
     print(f"Creating and writig on {file_name}")
 
+    header = next(data)
+
     with open(file_name, "w") as file:
+        file.write(header + "\n\n")
         for element in data:
-            file.write(element)
+            file.write(element + "\n")
 
     print("Export completed successfully.")
 
