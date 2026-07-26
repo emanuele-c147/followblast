@@ -6,7 +6,6 @@ import ijson
 import json
 from jinja2 import Environment, FileSystemLoader
 from json_stream import streamable_list
-import sys
 import re
 import csv
 import sqlite3
@@ -112,8 +111,7 @@ def validate_input(user_input, options):
     while user_input not in options:
 
         valid_options = list(options)
-        msg = ", ".join(str(i) for i in valid_options[:-1])
-        valid_values = f"{msg} or {valid_options[-1]}"
+        valid_values = ", ".join(valid_options[:-1]) + f" or {valid_options[-1]}"
         print(f"Invalid input, must be: {valid_values}")
 
         input_msg = ", ".join(str(i) for i in options) + ": "
@@ -132,7 +130,7 @@ def get_input(options, msg_key=None):
     for option, value in options.items():
         print(f"{option}- {value[msg_key] if msg_key and isinstance(value, dict) else value}")
 
-    input_msg = ", ".join(str(i) for i in options.keys()) + ": "
+    input_msg = ", ".join(str(i) for i in options) + ": "
     user_input = input(input_msg)
 
     return validate_input(user_input, options)
@@ -178,7 +176,7 @@ def export_to_html(file_name, data):
     header = next(data)
     stream = template.stream(header=header, data=data)
 
-    print(f"Creating and writig on {file_name}")
+    print(f"Creating and writing on {file_name}")
 
     stream.dump(file_name)
 
@@ -191,7 +189,7 @@ def export_to_csv(file_name, data):
     # Skip the descriptive sentence to keep the CSV strict
     next(data)
 
-    print(f"Creating and writig on {file_name}")
+    print(f"Creating and writing on {file_name}")
     
     with open(file_name, 'w', newline='') as file:
         writer = csv.writer(file)
@@ -210,7 +208,7 @@ def export_to_json(file_name, data, indent=4):
     data = streamable_list(data)
     payload = {"total_count": total_count, "data": data}
 
-    print(f'Creating and writig on "{file_name}"')
+    print(f'Creating and writing on "{file_name}"')
     with open(file_name, "w") as file:
         json.dump(payload, file, indent=indent)
 
@@ -220,7 +218,7 @@ def export_to_json(file_name, data, indent=4):
 def export_to_txt(file_name, data):
     """Create an export TXT file with a list of contacts."""
 
-    print(f"Creating and writig on {file_name}")
+    print(f"Creating and writing on {file_name}")
 
     header = next(data)
 
