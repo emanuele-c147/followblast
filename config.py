@@ -44,12 +44,12 @@ PROCESS_OPTIONS = {
     "2": {
         "title": "My followers",
         "output_message": "I have {} followers",
-        "query": "SELECT p.username, f.timestamp FROM people p JOIN followers f ON p.id = f.user_id"
+        "query": "SELECT p.username FROM people p JOIN followers f ON p.id = f.user_id"
     },
     "3": {
         "title": "My following",
         "output_message": "I follow {} people",
-        "query": "SELECT p.username, f.timestamp FROM people p JOIN following f ON p.id = f.user_id"
+        "query": "SELECT p.username FROM people p JOIN following f ON p.id = f.user_id"
     },
     "4": {
         "title": "Who I don't follow back",
