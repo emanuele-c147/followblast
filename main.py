@@ -267,7 +267,7 @@ def main():
             }
 
             indent = export_config.get("indent", None)
-            if indent:
+            if indent is not None:
                 args.update({"indent": indent})
 
             exporter(**args)
