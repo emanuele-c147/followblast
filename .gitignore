@@ -195,6 +195,5 @@ pyrightconfig.json
 # End of https://www.toptal.com/developers/gitignore/api/python,visualstudiocode
 
 # Ignore personal contacts
-followers_1.json
-following.json
-*.db
+data/
+output/

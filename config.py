@@ -6,12 +6,12 @@ from main import parse_follower, parse_following, export_to_html, export_to_csv,
 
 FILES_CONFIG = {
     "followers": {
-        "file": "followers_1.json",
+        "file_name": "followers_1.json",
         "parser": parse_follower,
         "item_path": "item",
     },
     "following": {
-        "file": "following.json",
+        "file_name": "following.json",
         "parser": parse_following,
         "item_path": "relationships_following.item",
     },

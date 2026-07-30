@@ -3,6 +3,7 @@ Read Instagram followers/following JSON exports and migrate them to a SQLite dat
 """
 
 import ijson
+import pathlib
 import json
 from jinja2 import Environment, FileSystemLoader
 from json_stream import streamable_list
@@ -12,6 +13,16 @@ import sqlite3
 from contextlib import contextmanager
 import config
 import datetime
+
+
+# Path definition
+PROJECT_ROOT_DIR = pathlib.Path(__file__).resolve().parent
+DATA_PATH = PROJECT_ROOT_DIR / "data"
+OUTPUT_PATH = PROJECT_ROOT_DIR / "output"
+
+# Path creation
+DATA_PATH.mkdir(parents=True, exist_ok=True)
+OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 
 
 def parse_follower(contact):
@@ -46,7 +57,8 @@ def parse_following(contact):
 def connect(db_name="ig_contacts.db"):
     """Establish, yield, and safely close a database connection."""
 
-    conn = sqlite3.connect(db_name)
+    db_path = DATA_PATH / db_name
+    conn = sqlite3.connect(db_path)
 
     try:
         conn.execute("PRAGMA foreign_keys = ON")
@@ -60,10 +72,12 @@ def connect(db_name="ig_contacts.db"):
         conn.close()
 
 
-def read_json(file, item_path):
+def read_json(file_name, item_path):
     """Reads the json content item by item avoiding RAM saturation."""
 
-    with open(file, 'rb') as f:
+    file_path = DATA_PATH / file_name
+
+    with open(file_path, 'rb') as f:
         for contact in ijson.items(f, item_path):
             yield contact
 
@@ -169,6 +183,8 @@ def generate_file_name(file_name):
 
 def export_to_html(file_name, data):
     """Create an export HTML file with a list of contacts."""
+
+    file_path = OUTPUT_PATH / file_name
     
     env = Environment(loader=FileSystemLoader("./templates"))
     template = env.get_template("template.html")
@@ -178,7 +194,7 @@ def export_to_html(file_name, data):
 
     print(f"Creating and writing on {file_name}")
 
-    stream.dump(file_name)
+    stream.dump(file_path)
 
     print("Export completed successfully.")
 
@@ -186,12 +202,14 @@ def export_to_html(file_name, data):
 def export_to_csv(file_name, data):
     """Create an export CSV file with a list of contacts."""
 
+    file_path = OUTPUT_PATH / file_name
+
     # Skip the descriptive sentence to keep the CSV strict
     next(data)
 
     print(f"Creating and writing on {file_name}")
     
-    with open(file_name, 'w', newline='') as file:
+    with open(file_path, 'w', newline='') as file:
         writer = csv.writer(file)
         for item in data:
             writer.writerow([item])
@@ -202,6 +220,8 @@ def export_to_csv(file_name, data):
 def export_to_json(file_name, data, indent=4):
     """Create an export JSON file with a list of contacts."""
 
+    file_path = OUTPUT_PATH / file_name
+
     total_count_raw = next(data)
     total_count = int(re.search(r"\d+", total_count_raw).group())
 
@@ -209,7 +229,7 @@ def export_to_json(file_name, data, indent=4):
     payload = {"total_count": total_count, "data": data}
 
     print(f'Creating and writing on "{file_name}"')
-    with open(file_name, "w") as file:
+    with open(file_path, "w") as file:
         json.dump(payload, file, indent=indent)
 
     print("Export completed successfully.")
@@ -218,11 +238,13 @@ def export_to_json(file_name, data, indent=4):
 def export_to_txt(file_name, data):
     """Create an export TXT file with a list of contacts."""
 
+    file_path = OUTPUT_PATH / file_name
+
     print(f"Creating and writing on {file_name}")
 
     header = next(data)
 
-    with open(file_name, "w") as file:
+    with open(file_path, "w") as file:
         file.write(header + "\n\n")
         for element in data:
             file.write(element + "\n")
@@ -243,7 +265,7 @@ def main():
 
         for contact_type, file_config in config.FILES_CONFIG.items():
 
-            contacts = read_json(file_config["file"], file_config["item_path"])
+            contacts = read_json(file_config["file_name"], file_config["item_path"])
 
             contacts_to_database(db_conn, contact_type, contacts, file_config["parser"])
 
