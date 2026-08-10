@@ -280,7 +280,8 @@ def export_to_html(file_name, data):
 
     print(f"Creating and writing on {file_name}")
 
-    stream.dump(file_path)
+    with open(file_path, "w") as file:
+        stream.dump(file)
 
     print("Export completed successfully.")
 
