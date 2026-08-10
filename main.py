@@ -8,12 +8,12 @@ import json
 from jinja2 import Environment, FileSystemLoader
 from json_stream import streamable_list
 import re
+import sys
 import csv
 import sqlite3
 from contextlib import contextmanager
 import config
 import datetime
-
 
 # Path definition
 PROJECT_ROOT_DIR = pathlib.Path(__file__).resolve().parent
@@ -26,31 +26,90 @@ OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 
 
 def parse_follower(contact):
-    """Normalize a raw follower entry into a flat {column: value} dict."""
+    """Normalize a raw follower entry into a flat {column: value} dict with strict key and value validation."""
 
-    data = contact["string_list_data"][0]
+    REQUIRED_STRUCTURE = {"value": str, "href": str, "timestamp": (int, float)}
+
+    if "string_list_data" not in contact:
+        raise KeyError("Missing key 'string_list_data'")
+
+    string_list = contact["string_list_data"]
+
+    if not isinstance(string_list, list):
+        raise TypeError(f"Expected dict item, got {type(contact)}")
+
+    if len(string_list) == 0:
+        raise ValueError("0 lenght data for 'string_list_data'")
+
+    data = string_list[0]
+
+    for required_key, required_type in REQUIRED_STRUCTURE.items():
+        if required_key not in data:
+            raise KeyError(f"Missing key {required_key}")
+
+        if not isinstance(data[required_key], required_type):
+            raise ValueError(
+                f"Expected {required_type} item, got {type(data[required_key])}"
+            )
 
     parsed_dict = {
         "username": data["value"],
         "contact_reference": data["href"],
-        "timestamp": data["timestamp"]
+        "timestamp": data["timestamp"],
     }
 
     return parsed_dict
 
 
 def parse_following(contact):
-    """Normalize a raw following entry into a flat {column: value} dict."""
+    """Normalize a raw follower entry into a flat {column: value} dict with strict key and value validation."""
 
-    data = contact["string_list_data"][0]
+    REQUIRED_STRUCTURE = {"href": str, "timestamp": (int, float)}
+
+    if "string_list_data" not in contact:
+        raise KeyError("Missing key 'string_list_data'")
+
+    if "title" not in contact:
+        raise KeyError("Missing key 'title'")
+
+    string_list = contact["string_list_data"]
+
+    if not isinstance(string_list, list):
+        raise TypeError(f"Expected dict item, got {type(contact)}")
+
+    if len(string_list) == 0:
+        raise ValueError("0 lenght data for 'string_list_data'")
+
+    data = string_list[0]
+
+    for required_key, required_type in REQUIRED_STRUCTURE.items():
+        if required_key not in data:
+            raise KeyError(f"Missing key {required_key}")
+
+        if not isinstance(data[required_key], required_type):
+            raise ValueError(
+                f"Expected {required_type} item, got {type(data[required_key])}"
+            )
 
     parsed_dict = {
         "username": contact["title"],
         "contact_reference": data["href"],
-        "timestamp": data["timestamp"]
+        "timestamp": data["timestamp"],
     }
 
     return parsed_dict
+
+
+def parse_contacts_generator(raw_contacts, parser):
+    """ Remap raw keys to a consistent schema """
+
+    for i, contact in enumerate(raw_contacts):
+
+        try:
+            yield parser(contact)
+
+        except (KeyError, TypeError, ValueError) as e:
+            print(f"Can't parse record {i} because of {e}")
 
 
 @contextmanager
@@ -72,46 +131,71 @@ def connect(db_name="ig_contacts.db"):
         conn.close()
 
 
+def validate_contact(contact):
+    """Validate contact structure from import"""
+
+    if not isinstance(contact, dict):
+        raise TypeError(f"Expected dict item, got {type(contact)}")
+
+
 def read_json(file_name, item_path):
     """Reads the json content item by item avoiding RAM saturation."""
 
     file_path = DATA_PATH / file_name
 
-    with open(file_path, 'rb') as f:
-        for contact in ijson.items(f, item_path):
-            yield contact
+    if not file_path.exists():
+        raise FileNotFoundError(f"Error: couldn't find {file_path}")
+
+    if file_path.stat().st_size == 0:
+        raise ValueError(f"Error: {file_path} is completely empty (0 bytes).")
+
+    try:
+        with open(file_path, "rb") as file:
+            for contact in ijson.items(file, item_path):
+
+                validate_contact(contact)
+
+                yield contact
+
+    except (ijson.common.JSONError, ijson.common.IncompleteJSONError) as e:
+        raise ValueError(
+            f"Corrupt or incomplete JSON syntax in '{file_name}': {e}"
+        ) from e
+
+    except TypeError as e:
+        raise ValueError(
+            f"Unexpected item structure in '{file_name}' (check item_path): {e}"
+        ) from e
+
+    except OSError as e:
+        raise ValueError(f"Cannot read '{file_name}': {e}") from e
 
 
-def contacts_to_database(db_conn, contact_type, contacts, parser):
-    """Parse and insert contacts into the appropriate SQLite table.
+def contacts_to_database(db_conn, contact_type, contacts):
+    """Insert contacts into the appropriate SQLite table.
 
     Args:
         db_conn: Active SQLite connection.
         contact_type: Table name / label ('followers' or 'following').
-        contacts: Iterable of raw contact dicts from the JSON.
-        parser: Function that normalizes a raw contact into a flat dict.
+        contacts: Iterable of parsed contact dicts from the JSON.
     """
 
     cur = db_conn.cursor()
 
     for contact in contacts:
 
-        # Remap raw keys to a consistent schema
-        contact_data = parser(contact)
-
         cur.execute(
             "INSERT OR IGNORE INTO people (username, contact_reference) VALUES (:username, :contact_reference)",
-            contact_data
+            contact,
         )
 
         user_id = cur.execute(
-            "SELECT id FROM people WHERE username = :username",
-            contact_data
+            "SELECT id FROM people WHERE username = :username", contact
         ).fetchone()[0]
 
         cur.execute(
             f"INSERT OR IGNORE INTO {contact_type} (user_id, timestamp) VALUES (?, ?)",
-            (user_id, contact_data["timestamp"])
+            (user_id, contact["timestamp"]),
         )
 
     db_conn.commit()
@@ -142,7 +226,9 @@ def get_input(options, msg_key=None):
     """
 
     for option, value in options.items():
-        print(f"{option}- {value[msg_key] if msg_key and isinstance(value, dict) else value}")
+        print(
+            f"{option}- {value[msg_key] if msg_key and isinstance(value, dict) else value}"
+        )
 
     input_msg = ", ".join(str(i) for i in options) + ": "
     user_input = input(input_msg)
@@ -175,7 +261,7 @@ def generate_file_name(file_name):
     The generated name does not include a file extension.
     """
 
-    timestamp = datetime.datetime.today().strftime('%Y-%m-%d_%H-%M-%S')
+    timestamp = datetime.datetime.today().strftime("%Y-%m-%d_%H-%M-%S")
     complete_file_name = file_name.lower().replace(" ", "-") + f"_{timestamp}"
 
     return complete_file_name
@@ -185,7 +271,7 @@ def export_to_html(file_name, data):
     """Create an export HTML file with a list of contacts."""
 
     file_path = OUTPUT_PATH / file_name
-    
+
     env = Environment(loader=FileSystemLoader("./templates"))
     template = env.get_template("template.html")
 
@@ -209,8 +295,8 @@ def export_to_csv(file_name, data):
     next(data)
 
     print(f"Creating and writing on {file_name}")
-    
-    with open(file_path, 'w', newline='') as file:
+
+    with open(file_path, "w", newline="") as file:
         writer = csv.writer(file)
         for item in data:
             writer.writerow([item])
@@ -265,10 +351,26 @@ def main():
     with connect() as db_conn:
 
         for contact_type, file_config in config.FILES_CONFIG.items():
+            try:
+                raw_contacts = read_json(
+                    file_config["file_name"], file_config["item_path"]
+                )
+                parsed_contacts = parse_contacts_generator(
+                    raw_contacts, file_config["parser"]
+                )
+                contacts_to_database(db_conn, contact_type, parsed_contacts)
 
-            contacts = read_json(file_config["file_name"], file_config["item_path"])
+            except FileNotFoundError as e:
+                print(f"Can't find '{contact_type}': {e}")
+                sys.exit(1)
 
-            contacts_to_database(db_conn, contact_type, contacts, file_config["parser"])
+            except ValueError as e:
+                print(f"Corrupted JSON '{contact_type}': {e}")
+                sys.exit(1)
+
+            except (KeyError, TypeError) as e:
+                print(f"Errore durante l'import di '{contact_type}': {e}")
+                sys.exit(1)
 
         print("What do you want to know?")
         process_option = get_input(config.PROCESS_OPTIONS, "title")
@@ -281,12 +383,14 @@ def main():
 
         exporter = export_config.get("exporter", None)
         if exporter:
-            file_name = generate_file_name(config.PROCESS_OPTIONS[process_option]["title"])
+            file_name = generate_file_name(
+                config.PROCESS_OPTIONS[process_option]["title"]
+            )
             file_extension = export_config["extension"]
 
             args = {
                 "file_name": file_extension.format(file_name),
-                "data": extract_contact(db_conn, process_option)
+                "data": extract_contact(db_conn, process_option),
             }
 
             indent = export_config.get("indent", None)
