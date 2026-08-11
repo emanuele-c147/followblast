@@ -102,7 +102,7 @@ def parse_following(contact):
 
 
 def parse_contacts_generator(raw_contacts, parser):
-    """ Remap raw keys to a consistent schema """
+    """Remap raw keys to a consistent schema"""
 
     for i, contact in enumerate(raw_contacts):
 
@@ -340,14 +340,20 @@ def export_to_txt(file_name, data):
     print("Export completed successfully.")
 
 
+def program_info():
+    """Prints project credits and repository details to the console."""
+
+    print("\n--- Followblast - Instagram Contacts Manager ---")
+    print("By Emanuele Canazza - https://github.com/emanuele-c147")
+    print("Project repo - https://github.com/emanuele-c147/followblast")
+
+
 def main():
     """Load followers and following from Instagram JSON exports and save them to SQLite.
     Extract data from the DB to see various information.
     """
 
-    print("--- Instagram Contacts Manager ---")
-    print("By Emanuele Canazza - https://github.com/emanuele-c147")
-    print()
+    program_info()
 
     with connect() as db_conn:
 
