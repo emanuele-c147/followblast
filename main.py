@@ -26,6 +26,11 @@ DATA_PATH.mkdir(parents=True, exist_ok=True)
 OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 
 
+# CustomError definition
+class ContactImportError(Exception):
+    pass
+
+
 def parse_follower(contact):
     """Normalize a raw follower entry into a flat {column: value} dict with strict key and value validation."""
 
@@ -348,6 +353,42 @@ def program_info():
     print("Project repo - https://github.com/emanuele-c147/followblast")
 
 
+def import_data(db_conn, file_config_items):
+    """Reads, parses, and persists contact data into the database.
+
+    Load raw JSON information, parse them using the specified parser, and insert the result into the database.
+
+    Args:
+        db_conn: Active SQLite connection.
+        file_config_items: An iterable of tuples `(contact_type, file_config)`
+            where `contact_type` is a string identifier and `file_config`
+            is a dict containing 'file_name', 'item_path', and 'parser'.
+
+    Raises:
+        ContactImportError: If a file is missing, the JSON is malformed,
+            or required configuration parameters are invalid or missing.
+    """
+
+    for contact_type, file_config in file_config_items:
+        try:
+            raw_contacts = read_json(file_config["file_name"], file_config["item_path"])
+            parsed_contacts = parse_contacts_generator(
+                raw_contacts, file_config["parser"]
+            )
+            contacts_to_database(db_conn, contact_type, parsed_contacts)
+
+        except FileNotFoundError as e:
+            raise ContactImportError(f"Can't find '{contact_type}': {e}") from e
+
+        except ValueError as e:
+            raise ContactImportError(f"Corrupted JSON '{contact_type}': {e}") from e
+
+        except (KeyError, TypeError) as e:
+            raise ContactImportError(
+                f"Errore durante l'import di '{contact_type}': {e}"
+            ) from e
+
+
 def main():
     """Load followers and following from Instagram JSON exports and save them to SQLite.
     Extract data from the DB to see various information.
@@ -357,27 +398,12 @@ def main():
 
     with connect() as db_conn:
 
-        for contact_type, file_config in config.FILES_CONFIG.items():
-            try:
-                raw_contacts = read_json(
-                    file_config["file_name"], file_config["item_path"]
-                )
-                parsed_contacts = parse_contacts_generator(
-                    raw_contacts, file_config["parser"]
-                )
-                contacts_to_database(db_conn, contact_type, parsed_contacts)
+        try:
+            import_data(db_conn, config.FILES_CONFIG.items())
 
-            except FileNotFoundError as e:
-                print(f"Can't find '{contact_type}': {e}")
-                sys.exit(1)
-
-            except ValueError as e:
-                print(f"Corrupted JSON '{contact_type}': {e}")
-                sys.exit(1)
-
-            except (KeyError, TypeError) as e:
-                print(f"Errore durante l'import di '{contact_type}': {e}")
-                sys.exit(1)
+        except ContactImportError as e:
+            print(e)
+            sys.exit(1)
 
         print("What do you want to know?")
         process_option = get_input(config.PROCESS_OPTIONS, "title")
