@@ -19,6 +19,7 @@ import datetime
 PROJECT_ROOT_DIR = pathlib.Path(__file__).resolve().parent
 DATA_PATH = PROJECT_ROOT_DIR / "data"
 OUTPUT_PATH = PROJECT_ROOT_DIR / "output"
+TEMPLATES_PATH = PROJECT_ROOT_DIR / "templates"
 
 # Path creation
 DATA_PATH.mkdir(parents=True, exist_ok=True)
@@ -272,7 +273,7 @@ def export_to_html(file_name, data):
 
     file_path = OUTPUT_PATH / file_name
 
-    env = Environment(loader=FileSystemLoader("./templates"))
+    env = Environment(loader=FileSystemLoader(TEMPLATES_PATH))
     template = env.get_template("template.html")
 
     header = next(data)
