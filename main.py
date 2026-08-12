@@ -395,7 +395,7 @@ def cli_menu():
     Returns:
         dict[str, Any]: A dictionary containing the user selections:
             - 'process_option' (str): The key representing the chosen data operation.
-            - 'export_config' (dict): The configuration dictionary associated with 
+            - 'export_config' (dict): The configuration dictionary associated with
               the selected export format.
     """
 
@@ -409,6 +409,36 @@ def cli_menu():
     return {"process_option": process_option, "export_config": export_config}
 
 
+def export_data(db_conn, process_option, export_config):
+    """Displays an interactive terminal menu for data processing and export selection.
+
+    Args:
+        db_conn: Active SQLite connection.
+        process_option (str): The key representing the chosen data operation.
+        export_config (dict): The configuration dictionary associated with tthe selected export format.
+    """
+
+    exporter = export_config.get("exporter", None)
+    if exporter:
+        file_name = generate_file_name(config.PROCESS_OPTIONS[process_option]["title"])
+        file_extension = export_config["extension"]
+
+        args = {
+            "file_name": file_extension.format(file_name),
+            "data": extract_contact(db_conn, process_option),
+        }
+
+        indent = export_config.get("indent", None)
+        if indent is not None:
+            args.update({"indent": indent})
+
+        exporter(**args)
+
+    else:
+        for element in extract_contact(db_conn, process_option):
+            print(f"- {element}")
+
+
 def main():
     """Load followers and following from Instagram JSON exports and save them to SQLite.
     Extract data from the DB to see various information.
@@ -417,7 +447,6 @@ def main():
     program_info()
 
     with connect() as db_conn:
-
         try:
             import_data(db_conn, config.FILES_CONFIG.items())
 
@@ -425,29 +454,9 @@ def main():
             print(e)
             sys.exit(1)
 
-    export_args = cli_menu()
+    export_config_args = cli_menu()
 
-        exporter = export_config.get("exporter", None)
-        if exporter:
-            file_name = generate_file_name(
-                config.PROCESS_OPTIONS[process_option]["title"]
-            )
-            file_extension = export_config["extension"]
-
-            args = {
-                "file_name": file_extension.format(file_name),
-                "data": extract_contact(db_conn, process_option),
-            }
-
-            indent = export_config.get("indent", None)
-            if indent is not None:
-                args.update({"indent": indent})
-
-            exporter(**args)
-
-        else:
-            for element in extract_contact(db_conn, process_option):
-                print(f"- {element}")
+    export_data(db_conn, **export_config_args)
 
 
 if __name__ == "__main__":
