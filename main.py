@@ -389,6 +389,26 @@ def import_data(db_conn, file_config_items):
             ) from e
 
 
+def cli_menu():
+    """Displays an interactive terminal menu for data processing and export selection.
+
+    Returns:
+        dict[str, Any]: A dictionary containing the user selections:
+            - 'process_option' (str): The key representing the chosen data operation.
+            - 'export_config' (dict): The configuration dictionary associated with 
+              the selected export format.
+    """
+
+    print("\nWhat do you want to know?")
+    process_option = get_input(config.PROCESS_OPTIONS, "title")
+
+    print("\nWould you like to export you data?")
+    export_option = get_input(config.EXPORT_OPTIONS, "title")
+    export_config = config.EXPORT_OPTIONS[export_option]
+
+    return {"process_option": process_option, "export_config": export_config}
+
+
 def main():
     """Load followers and following from Instagram JSON exports and save them to SQLite.
     Extract data from the DB to see various information.
@@ -405,14 +425,7 @@ def main():
             print(e)
             sys.exit(1)
 
-        print("What do you want to know?")
-        process_option = get_input(config.PROCESS_OPTIONS, "title")
-        print()
-
-        print("Would you like to export you data?")
-        export_option = get_input(config.EXPORT_OPTIONS, "title")
-        export_config = config.EXPORT_OPTIONS[export_option]
-        print()
+    export_args = cli_menu()
 
         exporter = export_config.get("exporter", None)
         if exporter:
