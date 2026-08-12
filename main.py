@@ -26,6 +26,11 @@ DATA_PATH.mkdir(parents=True, exist_ok=True)
 OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 
 
+# CustomError definition
+class ContactImportError(Exception):
+    pass
+
+
 def parse_follower(contact):
     """Normalize a raw follower entry into a flat {column: value} dict with strict key and value validation."""
 
@@ -102,7 +107,7 @@ def parse_following(contact):
 
 
 def parse_contacts_generator(raw_contacts, parser):
-    """ Remap raw keys to a consistent schema """
+    """Remap raw keys to a consistent schema"""
 
     for i, contact in enumerate(raw_contacts):
 
@@ -340,69 +345,118 @@ def export_to_txt(file_name, data):
     print("Export completed successfully.")
 
 
+def program_info():
+    """Prints project credits and repository details to the console."""
+
+    print("\n--- Followblast - Instagram Contacts Manager ---")
+    print("By Emanuele Canazza - https://github.com/emanuele-c147")
+    print("Project repo - https://github.com/emanuele-c147/followblast")
+
+
+def import_data(db_conn, file_config_items):
+    """Reads, parses, and persists contact data into the database.
+
+    Load raw JSON information, parse them using the specified parser, and insert the result into the database.
+
+    Args:
+        db_conn: Active SQLite connection.
+        file_config_items: An iterable of tuples `(contact_type, file_config)`
+            where `contact_type` is a string identifier and `file_config`
+            is a dict containing 'file_name', 'item_path', and 'parser'.
+
+    Raises:
+        ContactImportError: If a file is missing, the JSON is malformed,
+            or required configuration parameters are invalid or missing.
+    """
+
+    for contact_type, file_config in file_config_items:
+        try:
+            raw_contacts = read_json(file_config["file_name"], file_config["item_path"])
+            parsed_contacts = parse_contacts_generator(
+                raw_contacts, file_config["parser"]
+            )
+            contacts_to_database(db_conn, contact_type, parsed_contacts)
+
+        except FileNotFoundError as e:
+            raise ContactImportError(f"Can't find '{contact_type}': {e}") from e
+
+        except ValueError as e:
+            raise ContactImportError(f"Corrupted JSON '{contact_type}': {e}") from e
+
+        except (KeyError, TypeError) as e:
+            raise ContactImportError(
+                f"Errore durante l'import di '{contact_type}': {e}"
+            ) from e
+
+
+def cli_menu():
+    """Displays an interactive terminal menu for data processing and export selection.
+
+    Returns:
+        dict[str, Any]: A dictionary containing the user selections:
+            - 'process_option' (str): The key representing the chosen data operation.
+            - 'export_config' (dict): The configuration dictionary associated with
+              the selected export format.
+    """
+
+    print("\nWhat do you want to know?")
+    process_option = get_input(config.PROCESS_OPTIONS, "title")
+
+    print("\nWould you like to export you data?")
+    export_option = get_input(config.EXPORT_OPTIONS, "title")
+    export_config = config.EXPORT_OPTIONS[export_option]
+
+    return {"process_option": process_option, "export_config": export_config}
+
+
+def export_data(db_conn, process_option, export_config):
+    """Displays an interactive terminal menu for data processing and export selection.
+
+    Args:
+        db_conn: Active SQLite connection.
+        process_option (str): The key representing the chosen data operation.
+        export_config (dict): The configuration dictionary associated with tthe selected export format.
+    """
+
+    exporter = export_config.get("exporter", None)
+    if exporter:
+        file_name = generate_file_name(config.PROCESS_OPTIONS[process_option]["title"])
+        file_extension = export_config["extension"]
+
+        args = {
+            "file_name": file_extension.format(file_name),
+            "data": extract_contact(db_conn, process_option),
+        }
+
+        indent = export_config.get("indent", None)
+        if indent is not None:
+            args.update({"indent": indent})
+
+        exporter(**args)
+
+    else:
+        for element in extract_contact(db_conn, process_option):
+            print(f"- {element}")
+
+
 def main():
     """Load followers and following from Instagram JSON exports and save them to SQLite.
     Extract data from the DB to see various information.
     """
 
-    print("--- Instagram Contacts Manager ---")
-    print("By Emanuele Canazza - https://github.com/emanuele-c147")
-    print()
+    program_info()
 
     with connect() as db_conn:
+        try:
+            import_data(db_conn, config.FILES_CONFIG.items())
 
-        for contact_type, file_config in config.FILES_CONFIG.items():
-            try:
-                raw_contacts = read_json(
-                    file_config["file_name"], file_config["item_path"]
-                )
-                parsed_contacts = parse_contacts_generator(
-                    raw_contacts, file_config["parser"]
-                )
-                contacts_to_database(db_conn, contact_type, parsed_contacts)
+        except ContactImportError as e:
+            print(e)
+            sys.exit(1)
 
-            except FileNotFoundError as e:
-                print(f"Can't find '{contact_type}': {e}")
-                sys.exit(1)
+    export_config_args = cli_menu()
 
-            except ValueError as e:
-                print(f"Corrupted JSON '{contact_type}': {e}")
-                sys.exit(1)
-
-            except (KeyError, TypeError) as e:
-                print(f"Errore durante l'import di '{contact_type}': {e}")
-                sys.exit(1)
-
-        print("What do you want to know?")
-        process_option = get_input(config.PROCESS_OPTIONS, "title")
-        print()
-
-        print("Would you like to export you data?")
-        export_option = get_input(config.EXPORT_OPTIONS, "title")
-        export_config = config.EXPORT_OPTIONS[export_option]
-        print()
-
-        exporter = export_config.get("exporter", None)
-        if exporter:
-            file_name = generate_file_name(
-                config.PROCESS_OPTIONS[process_option]["title"]
-            )
-            file_extension = export_config["extension"]
-
-            args = {
-                "file_name": file_extension.format(file_name),
-                "data": extract_contact(db_conn, process_option),
-            }
-
-            indent = export_config.get("indent", None)
-            if indent is not None:
-                args.update({"indent": indent})
-
-            exporter(**args)
-
-        else:
-            for element in extract_contact(db_conn, process_option):
-                print(f"- {element}")
+    export_data(db_conn, **export_config_args)
 
 
 if __name__ == "__main__":
