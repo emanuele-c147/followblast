@@ -2,8 +2,8 @@
 Configuration file for DB and FILES
 """
 
-from main import export_to_html, export_to_csv, export_to_json, export_to_txt
 from parsers import parse_follower, parse_following
+from exporters import export_to_html, export_to_csv, export_to_json, export_to_txt
 
 FILES_CONFIG = {
     "followers": {
