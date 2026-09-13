@@ -2,6 +2,7 @@
 Parse, checks and normalize raw json data
 """
 
+
 def parse_follower(contact):
     """Normalize a raw follower entry into a flat {column: value} dict with strict key and value validation."""
 

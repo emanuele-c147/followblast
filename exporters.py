@@ -9,6 +9,7 @@ from json_stream import streamable_list
 from jinja2 import Environment, FileSystemLoader
 from main import OUTPUT_PATH, TEMPLATES_PATH
 
+
 def export_to_html(file_name, data):
     """Create an export HTML file with a list of contacts."""
 
