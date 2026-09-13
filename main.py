@@ -456,13 +456,13 @@ def main():
                 print(e)
                 sys.exit(1)
 
+            export_config_args = cli_menu()
+
+            export_data(db_conn, **export_config_args)
+
     except sqlite3.Error as e:
         print(f"Error during DB usage: {e}")
         sys.exit(1)
-
-    export_config_args = cli_menu()
-
-    export_data(db_conn, **export_config_args)
 
 
 if __name__ == "__main__":
