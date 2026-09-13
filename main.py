@@ -14,6 +14,7 @@ import sqlite3
 from contextlib import contextmanager
 import config
 import datetime
+import traceback
 
 # Path definition
 PROJECT_ROOT_DIR = pathlib.Path(__file__).resolve().parent
@@ -446,13 +447,18 @@ def main():
 
     program_info()
 
-    with connect() as db_conn:
-        try:
-            import_data(db_conn, config.FILES_CONFIG.items())
+    try:
+        with connect() as db_conn:
+            try:
+                import_data(db_conn, config.FILES_CONFIG.items())
 
-        except ContactImportError as e:
-            print(e)
-            sys.exit(1)
+            except ContactImportError as e:
+                print(e)
+                sys.exit(1)
+
+    except sqlite3.Error as e:
+        print(f"Error during DB usage: {e}")
+        sys.exit(1)
 
     export_config_args = cli_menu()
 
@@ -460,4 +466,14 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+
+    except KeyboardInterrupt:
+        print("Program stopped by user")
+        sys.exit(1)
+
+    except Exception as e:
+        traceback.print_exc()
+        print(f"Unhandle error: {e}")
+        sys.exit(1)
